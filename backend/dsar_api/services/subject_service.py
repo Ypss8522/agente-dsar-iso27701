@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ..errors import ConflictError, NotFoundError, ValidationError
 from ..extensions import db
-from ..models import DataSubject
+from ..models import DataSubject, DsarRequest
 from ..models.data_subject import utcnow
 from . import audit_service
 from .validators import clean_document_id, clean_email, clean_text, require_json
@@ -32,6 +32,8 @@ def create_subject(payload) -> DataSubject:
     )
     db.session.add(subject)
     db.session.flush()
+    # Vincular solicitudes recibidas antes de dar de alta al titular.
+    DsarRequest.query.filter_by(document_id=document_id, subject_id=None).update({"subject_id": subject.id})
     audit_service.record(
         "SUBJECT_CREATED", entity_type="data_subject", entity_id=str(subject.id),
         document_id=document_id, commit=False,
@@ -115,10 +117,11 @@ def erase(payload) -> dict:
     subject.anonymized_at = utcnow()
     # Los PII duplicados en las solicitudes también se anonimizan; el ticket,
     # tipo y estado se conservan como evidencia de cumplimiento.
-    for req in subject.requests.all():
+    for req in DsarRequest.query.filter_by(document_id=document_id).all():
         req.document_id = placeholder
         req.email = "anonimizado@invalid"
         req.details = None
+        req.resolution_note = None
 
     audit_service.record(
         "USER_ERASURE", entity_type="data_subject", entity_id=str(subject.id),

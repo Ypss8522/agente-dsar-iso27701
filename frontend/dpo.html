@@ -1,41 +1,53 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel DPO - Agente DSAR ISO 27701</title>
-    <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel DPO — Agente DSAR</title><link rel="stylesheet" href="/static/styles.css">
 </head>
-<body>
-    <div class="container wide">
-        <header>
-            <h1>Panel del Oficial de Protección de Datos (DPO)</h1>
-            <p>Supervisión de solicitudes automatizadas y cumplimiento de SLAs.</p>
-        </header>
-
-        <section class="card">
-            <h2>Solicitudes Recientes</h2>
-            <table class="dpo-table">
-                <thead>
-                    <tr>
-                        <th>Ticket ID</th>
-                        <th>Usuario ID</th>
-                        <th>Derecho Solic.</th>
-                        <th>Estado</th>
-                        <th>SLA Restante</th>
-                    </tr>
-                </thead>
-                <tbody id="dpoTableBody">
-                    <tr>
-                        <td>#DSAR-8921</td>
-                        <td>72839102</td>
-                        <td>Acceso</td>
-                        <td><span class="badge success">Procesado</span></td>
-                        <td>29 días</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-    </div>
-</body>
-</html>
+<body><div class="container wide">
+<header><h1>Revisa solicitudes con ayuda de IA</h1><p>Encuentra datos, revisa documentos y atiende cada solicitud.</p><a href="/">Abrir portal del titular</a></header>
+<section class="card session-card">
+<form id="loginForm"><label for="apiKey">Clave del responsable DPO</label><p class="help">Al iniciar con iniciar.py, copia aquí la clave que muestra tu terminal.</p><input id="apiKey" type="password" required autocomplete="off"><button id="loginButton">Entrar al panel</button></form>
+<button type="button" id="logoutButton" class="hidden">Cerrar sesión</button><p id="panelStatus" role="status" aria-live="polite"></p>
+</section>
+<main id="workspace" class="hidden">
+<nav class="panel-tabs" aria-label="Secciones del panel">
+<button type="button" data-panel="requestsPanel" aria-pressed="true">1. Solicitudes</button>
+<button type="button" data-panel="subjectPanel" aria-pressed="false">2. Datos del titular</button>
+<button type="button" data-panel="aiPanel" aria-pressed="false">3. Asistente IA</button>
+</nav>
+<section id="requestsPanel" class="panel-section">
+<section class="card">
+<h2>Solicitudes recibidas</h2><p class="help">Elige <strong>Revisar</strong> para cargar el titular y preparar la búsqueda de sus documentos.</p>
+<form id="filterForm" class="toolbar">
+<div><label for="statusFilter">Estado</label><select id="statusFilter"><option value="">Todos</option><option>Recibido</option><option>En verificacion</option><option>En proceso</option><option>Completado</option><option>Rechazado</option></select></div>
+<div><label for="typeFilter">Derecho</label><select id="typeFilter"><option value="">Todos</option><option>Acceso</option><option>Supresion</option><option>Rectificacion</option><option>Portabilidad</option></select></div>
+<button>Actualizar</button></form>
+<div class="table-scroll"><table class="dpo-table"><thead><tr><th>Ticket</th><th>Titular</th><th>Derecho</th><th>Estado</th><th>Días restantes</th><th>Acciones</th></tr></thead><tbody id="dpoTableBody"></tbody></table></div>
+<div class="toolbar"><button type="button" id="previousPage">Anterior</button><p id="pageInfo"></p><button type="button" id="nextPage">Siguiente</button></div>
+</section>
+<section id="requestDetail" class="card hidden">
+<p class="eyebrow">Solicitud seleccionada</p><h2 id="detailTitle"></h2><p id="caseSummary"></p><p id="detailText"></p><p id="caseGuide" class="guide-box"></p>
+<div class="toolbar"><button type="button" id="caseSubject">Ver datos del titular</button><button type="button" id="caseAI">Buscar documentos con IA</button></div>
+<form id="statusForm"><label for="newStatus">Siguiente estado</label><select id="newStatus" required></select><label for="resolutionNote">Nota de resolución</label><textarea id="resolutionNote" maxlength="500" placeholder="Describe lo revisado y la actuación realizada."></textarea><button id="saveStatus">Guardar estado</button></form>
+<details><summary>Historial de esta solicitud</summary><div id="auditEntries"></div></details>
+</section>
+</section>
+<section id="subjectPanel" class="panel-section hidden">
+<section class="card"><h2>Datos del titular</h2><p class="help">Al revisar una solicitud, su documento se carga aquí. Comprueba la identidad antes de entregar datos o realizar cambios.</p>
+<form id="subjectForm"><label for="subjectId">Documento / ID</label><input id="subjectId" required pattern="[A-Za-z0-9\-]{4,32}"><button>Consultar datos</button></form>
+<div id="subjectData" aria-live="polite"></div><div class="toolbar"><button type="button" id="portableButton" disabled>Descargar datos en JSON</button><button type="button" id="eraseButton" disabled>Solicitar supresión</button></div>
+<form id="rectifyForm" class="hidden"><h3>Corregir datos</h3><label for="subjectName">Nombre corregido</label><input id="subjectName" maxlength="200"><label for="subjectEmail">Correo corregido</label><input id="subjectEmail" type="email" maxlength="254"><button>Guardar rectificación</button></form></section>
+</section>
+<section id="aiPanel" class="panel-section hidden">
+<section class="card"><h2>Asistente de búsqueda con IA</h2><p>Describe qué necesitas encontrar. La IA ordena fragmentos de tus documentos por su significado.</p>
+<div class="ai-health"><p id="aiStatus" role="status">Comprobando IA local…</p><button type="button" id="refreshAI">Comprobar de nuevo</button></div>
+<p id="aiCase" class="guide-box">Selecciona una solicitud para buscar documentos de su titular, o realiza una búsqueda general.</p>
+<form id="searchForm"><label for="query">¿Qué información necesitas?</label><input id="query" maxlength="4000" required placeholder="Por ejemplo: datos de contacto y solicitudes de publicidad"><div class="check-line"><input type="checkbox" id="scopeSubject" disabled><label for="scopeSubject">Buscar sólo en documentos que mencionan el ID del titular seleccionado</label></div><button id="searchButton">Buscar con IA</button></form>
+<div class="suggestions" aria-label="Consultas sugeridas"><button type="button" data-query="datos de contacto, correo electrónico y teléfono">Datos de contacto</button><button type="button" data-query="solicitudes, consentimiento y preferencias de publicidad">Consentimiento y publicidad</button><button type="button" data-query="plazos y motivos de conservación de datos personales">Conservación de datos</button></div>
+<p id="searchNotice" role="status" aria-live="polite"></p><div id="searchResults"></div>
+</section>
+<section class="card"><h2>Preparar un texto para revisión</h2><p class="help">Puedes enviar un fragmento encontrado aquí y ocultar coincidencias antes de revisarlo.</p>
+<form id="redactForm"><label for="redactText">Texto a revisar</label><textarea id="redactText" maxlength="20000" required rows="5"></textarea><label for="redactValues">Nombres u otros valores (uno por línea)</label><textarea id="redactValues" rows="2"></textarea><button>Ocultar coincidencias</button></form><pre id="redactResult"></pre></section>
+</section>
+</main></div><script src="/static/dpo.js"></script></body></html>

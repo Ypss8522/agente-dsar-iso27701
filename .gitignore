@@ -1,5 +1,6 @@
 # Python y entornos virtuales
 venv/
+.venv/
 env/
 __pycache__/
 *.py[cod]
@@ -12,6 +13,7 @@ __pycache__/
 *.index
 *.bin
 models_local/
+ai_engine/data/
 
 # Archivos de sistema operativo
 .DS_Store
@@ -23,3 +25,4 @@ Thumbs.db
 .env
 .pytest_cache/
 backend/instance/
+node_modules/

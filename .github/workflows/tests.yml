@@ -1,0 +1,50 @@
+name: Pruebas DSAR
+on: [push, pull_request]
+jobs:
+  tests:
+    name: Pruebas (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install -r backend/requirements.txt faiss-cpu numpy pypdf
+      - run: npm ci
+      - run: python -m pytest backend/tests -q
+      - run: python -m unittest ai_engine.test_search_engine -v
+      - run: npm test
+      - run: python -m compileall -q iniciar.py app.py backend ai_engine scripts
+      - run: node --check frontend/dpo.js
+      - run: git diff --check
+      - run: python scripts/setup.py --demo
+  docker:
+    name: Docker y Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r backend/requirements.txt
+      - run: python scripts/setup.py
+      - run: docker compose -p dsar-ci build backend
+      - run: docker compose -p dsar-ci up -d
+      - run: python scripts/check_docker.py
+      - name: Comprobar dependencias de IA en la imagen
+        run: docker compose -p dsar-ci exec -T backend python -c "import torch, faiss, sentence_transformers; print('Dependencias de IA disponibles')"
+      - name: Diagnóstico de contenedores si falla
+        if: failure()
+        run: docker compose -p dsar-ci logs --tail 80
+      - name: Limpiar contenedores de prueba
+        if: always()
+        run: docker compose -p dsar-ci down -v

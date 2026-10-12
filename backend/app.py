@@ -1,5 +1,9 @@
 """Punto de entrada: `python backend/app.py` (puerto 5000)."""
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dsar_api import create_app
 

@@ -13,23 +13,21 @@ def _csv(value: str) -> list[str]:
 
 class BaseConfig:
     ENV_NAME = "base"
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", f"sqlite:///{BASE_DIR / 'instance' / 'dsar.db'}"
-    )
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{BASE_DIR / 'instance' / 'dsar.db'}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    # Autenticación por API key (header X-API-Key). Sin clave => acceso denegado.
-    SERVICE_API_KEY = os.getenv("SERVICE_API_KEY", "")  # n8n / servicios internos
-    DPO_API_KEY = os.getenv("DPO_API_KEY", "")          # panel del DPO
-    # Clave para referenciar al titular en la bitácora sin guardar su documento en claro.
-    AUDIT_HASH_KEY = os.getenv("AUDIT_HASH_KEY", "")
-
-    CORS_ORIGINS = _csv(os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"))
-
-    # Plazo legal para responder una solicitud (días).
-    DSAR_SLA_DAYS = int(os.getenv("DSAR_SLA_DAYS", "30"))
+    SERVICE_API_KEY = ""
+    DPO_API_KEY = ""
+    AUDIT_HASH_KEY = ""
+    CORS_ORIGINS = ["http://localhost:5000", "http://127.0.0.1:5000"]
+    # Plazo interno configurable; no implica un plazo legal universal.
+    DSAR_SLA_DAYS = 30
     DEFAULT_PAGE_SIZE = 50
     MAX_PAGE_SIZE = 200
+    MAX_CONTENT_LENGTH = 64 * 1024
+    DSAR_INTAKE_MODE = "direct"
+    N8N_WEBHOOK_URL = "http://127.0.0.1:5678/webhook/dsar-request"
+    N8N_TIMEOUT_SECONDS = 10
+    N8N_WEBHOOK_TOKEN = ""
 
 
 class DevelopmentConfig(BaseConfig):
@@ -76,3 +74,19 @@ def get_config(name: str | None = None):
         return CONFIGS[name]
     except KeyError:
         raise RuntimeError(f"APP_ENV desconocido: {name!r}. Usa: {', '.join(CONFIGS)}")
+
+
+def environment_overrides():
+    """Leer por factory: evita usar claves antiguas después de cargar otro .env."""
+    values = {name: os.environ[name] for name in (
+        "DATABASE_URL", "SERVICE_API_KEY", "DPO_API_KEY", "AUDIT_HASH_KEY",
+        "DSAR_INTAKE_MODE", "N8N_WEBHOOK_URL", "N8N_WEBHOOK_TOKEN",
+    ) if name in os.environ}
+    if "DATABASE_URL" in values:
+        values["SQLALCHEMY_DATABASE_URI"] = values.pop("DATABASE_URL")
+    if "CORS_ORIGINS" in os.environ:
+        values["CORS_ORIGINS"] = _csv(os.environ["CORS_ORIGINS"])
+    for name in ("DSAR_SLA_DAYS", "N8N_TIMEOUT_SECONDS"):
+        if name in os.environ:
+            values[name] = int(os.environ[name])
+    return values
