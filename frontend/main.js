@@ -8,8 +8,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = document.getElementById('formStatus');
     if (!dsarForm || !responseCard || !ticketIdSpan || !btnSubmit || !status) return;
 
-    const webhookUrl = dsarForm.dataset.webhookUrl || 'http://localhost:5678/webhook/dsar-request';
+    const webhookUrl = dsarForm.dataset.webhookUrl || '/api/intake';
     let sending = false;
+    let lastPayload = null;
+    let submissionKey = null;
 
     dsarForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -27,6 +29,12 @@ document.addEventListener('DOMContentLoaded', () => {
             details: document.getElementById('details').value,
             timestamp: new Date().toISOString(),
         };
+        const signature = JSON.stringify({ ...payload, timestamp: undefined });
+        if (signature !== lastPayload) {
+            submissionKey = typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
+                : Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
+            lastPayload = signature;
+        }
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 15000);
         const buttonText = btnSubmit.textContent;
@@ -41,23 +49,23 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(webhookUrl, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Idempotency-Key': submissionKey },
                 body: JSON.stringify(payload),
                 signal: controller.signal,
             });
-            if (!response.ok) {
-                throw new Error(`n8n respondió con un error HTTP ${response.status}.`);
-            }
             let result;
             try {
                 result = await response.json();
             } catch (error) {
                 if (error.name === 'AbortError') throw error;
-                throw new Error('n8n no devolvió JSON válido. Verifica si se creó el ticket antes de reenviar.');
+                throw new Error(`El servidor no devolvió JSON válido (HTTP ${response.status}). Reintenta sin cambiar el formulario.`);
+            }
+            if (!response.ok) {
+                throw new Error(result?.error?.message || `El servidor respondió HTTP ${response.status}.`);
             }
             if (!result || result.status === 'error' ||
                 typeof result.ticket_id !== 'string' || !result.ticket_id.trim()) {
-                throw new Error('n8n no confirmó un ticket. Comprueba el flujo antes de reenviar.');
+                throw new Error('El servidor no confirmó un ticket. Reintenta sin cambiar el formulario.');
             }
             ticketIdSpan.textContent = result.ticket_id;
             dsarForm.classList.add('hidden');
@@ -67,9 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             status.dataset.state = 'error';
             if (error.name === 'AbortError') {
-                status.textContent = 'La respuesta tardó demasiado. Comprueba si se creó el ticket antes de reenviar.';
+                status.textContent = 'La respuesta tardó demasiado. Reintenta sin cambiar el formulario para conservar el mismo ticket.';
             } else if (error instanceof TypeError) {
-                status.textContent = 'No se pudo conectar con n8n. Comprueba la conexión y CORS, y si se creó el ticket antes de reenviar.';
+                status.textContent = 'No se pudo conectar con el servidor. Abre el portal desde Flask y revisa la conexión; si usas otro origen, revisa CORS.';
             } else {
                 status.textContent = error.message;
             }

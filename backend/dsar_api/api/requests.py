@@ -14,7 +14,8 @@ ROLES = ("service", "dpo")
 @require_role(*ROLES)
 def create_request():
     """Lo llama n8n al recibir el formulario. Responde con `ticket_id` para el frontend."""
-    req = request_service.create_request(request.get_json(silent=True))
+    req = request_service.create_request(request.get_json(silent=True),
+                                         submission_key=request.headers.get("Idempotency-Key"))
     return ok({"ticket_id": req.ticket_id, **req.to_dict()}, 201)
 
 

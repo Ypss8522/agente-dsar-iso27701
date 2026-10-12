@@ -16,6 +16,18 @@ class ValidationTests(unittest.TestCase):
             with self.subTest(k=k), self.assertRaises(ValueError):
                 engine.buscar_pii_vectorial(query, k)
 
+    def test_model_identity_survives_directory_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first, second = Path(directory) / 'a', Path(directory) / 'b'
+            first.mkdir(); second.mkdir()
+            for root in (first, second):
+                (root / 'config.json').write_text('{"dimension":2}')
+                (root / 'model.safetensors').write_bytes(b'fake-test-weights')
+            self.assertEqual(engine._model_identity(str(first)), engine._model_identity(str(second)))
+            (second / 'model.safetensors').write_bytes(b'different-weights')
+            engine._model_identity.cache_clear()
+            self.assertNotEqual(engine._model_identity(str(first)), engine._model_identity(str(second)))
+
     def test_query_is_trimmed(self):
         self.assertEqual(engine.validar_consulta(' datos '), 'datos')
 

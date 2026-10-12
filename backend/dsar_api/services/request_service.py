@@ -1,12 +1,16 @@
 """Ciclo de vida de las solicitudes DSAR (tickets, estados y SLA)."""
 import secrets
+import hashlib
+import hmac
+import json
+import re
 
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from ..errors import ConflictError, NotFoundError, ValidationError
 from ..extensions import db
-from ..models import DataSubject, DsarRequest, RequestStatus, RequestType
+from ..models import DataSubject, DsarRequest, RequestStatus, RequestType, Submission
 from ..models.data_subject import utcnow
 from ..models.dsar_request import ALLOWED_TRANSITIONS, CLOSED_STATUSES
 from . import audit_service
@@ -25,13 +29,43 @@ def _new_ticket_id() -> str:
     return "DSAR-" + secrets.token_hex(4).upper()
 
 
-def create_request(payload) -> DsarRequest:
-    """Registra la solicitud enviada por el frontend/n8n y calcula su fecha límite (SLA)."""
+def validated_payload(payload) -> dict:
     payload = require_json(payload)
-    document_id = clean_document_id(payload.get("user_id"))
-    email = clean_email(payload.get("email"))
-    request_type = _parse_enum(RequestType, payload.get("request_type"), "request_type")
-    details = clean_text(payload.get("details"), field="details", max_len=2000)
+    return {
+        "user_id": clean_document_id(payload.get("user_id")),
+        "email": clean_email(payload.get("email")),
+        "request_type": _parse_enum(RequestType, payload.get("request_type"), "request_type").value,
+        "details": clean_text(payload.get("details"), field="details", max_len=2000),
+    }
+
+
+def validate_submission_key(key):
+    if key is not None and not re.fullmatch(r"[A-Za-z0-9_-]{16,80}", key):
+        raise ValidationError("Idempotency-Key debe tener 16-80 caracteres alfanuméricos, guiones o guiones bajos.")
+    return key
+
+
+def _existing_submission(key, fingerprint):
+    previous = db.session.get(Submission, key) if key else None
+    if previous:
+        if not hmac.compare_digest(previous.fingerprint, fingerprint):
+            raise ConflictError("La clave de reintento corresponde a otra solicitud.", code="idempotency_conflict")
+        return previous.request
+
+
+def create_request(payload, *, submission_key=None) -> DsarRequest:
+    """Registra la solicitud enviada por el frontend/n8n y calcula su fecha límite (SLA)."""
+    payload = validated_payload(payload)
+    key = validate_submission_key(submission_key)
+    audit_key = current_app.config["AUDIT_HASH_KEY"]
+    if not audit_key:
+        raise RuntimeError("AUDIT_HASH_KEY no está configurada.")
+    fingerprint = hmac.new(audit_key.encode(), json.dumps(payload, sort_keys=True).encode(), hashlib.sha256).hexdigest()
+    existing = _existing_submission(key, fingerprint)
+    if existing:
+        return existing
+    document_id, email, details = payload["user_id"], payload["email"], payload["details"]
+    request_type = RequestType(payload["request_type"])
 
     subject = DataSubject.query.filter_by(document_id=document_id).first()
     received = utcnow()
@@ -59,7 +93,16 @@ def create_request(payload) -> DsarRequest:
             detail={"request_type": request_type.value, "subject_found": subject is not None},
             commit=False,
         )
-        db.session.commit()
+        if key:
+            db.session.add(Submission(key=key, fingerprint=fingerprint, request_id=req.id))
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            existing = _existing_submission(key, fingerprint)
+            if existing:
+                return existing
+            raise
         return req
     raise ConflictError("No se pudo generar un ticket único; reintenta.", code="ticket_collision")
 

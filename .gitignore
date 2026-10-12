@@ -25,3 +25,4 @@ Thumbs.db
 .env
 .pytest_cache/
 backend/instance/
+node_modules/

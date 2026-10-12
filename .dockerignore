@@ -1,0 +1,10 @@
+.git
+.venv
+node_modules
+**/__pycache__
+**/.env
+*.zip
+backend/instance
+models_local
+ai_engine/data
+.pytest_cache

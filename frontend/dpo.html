@@ -1,41 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel DPO - Agente DSAR ISO 27701</title>
-    <link rel="stylesheet" href="/static/styles.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel DPO — Agente DSAR</title><link rel="stylesheet" href="/static/styles.css">
 </head>
-<body>
-    <div class="container wide">
-        <header>
-            <h1>Panel del Oficial de Protección de Datos (DPO)</h1>
-            <p>Supervisión de solicitudes automatizadas y cumplimiento de SLAs.</p>
-        </header>
-
-        <section class="card">
-            <h2>Solicitudes Recientes</h2>
-            <table class="dpo-table">
-                <thead>
-                    <tr>
-                        <th>Ticket ID</th>
-                        <th>Usuario ID</th>
-                        <th>Derecho Solic.</th>
-                        <th>Estado</th>
-                        <th>SLA Restante</th>
-                    </tr>
-                </thead>
-                <tbody id="dpoTableBody">
-                    <tr>
-                        <td>#DSAR-8921</td>
-                        <td>72839102</td>
-                        <td>Acceso</td>
-                        <td><span class="badge success">Procesado</span></td>
-                        <td>29 días</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-    </div>
-</body>
-</html>
+<body><div class="container wide">
+<header><h1>Panel de Protección de Datos</h1><p>Solicitudes, trazabilidad y revisión de expedientes.</p><a href="/">Portal del titular</a></header>
+<section class="card"><form id="loginForm"><label for="apiKey">Clave del responsable DPO</label><input id="apiKey" type="password" required autocomplete="off"><button id="loginButton">Conectar</button></form><button type="button" id="logoutButton" class="hidden">Cerrar sesión</button><p id="panelStatus" role="status" aria-live="polite"></p></section>
+<main id="workspace" class="hidden">
+<section class="card">
+<h2>Solicitudes</h2><form id="filterForm" class="toolbar">
+<div><label for="statusFilter">Estado</label><select id="statusFilter"><option value="">Todos</option><option>Recibido</option><option>En verificacion</option><option>En proceso</option><option>Completado</option><option>Rechazado</option></select></div>
+<div><label for="typeFilter">Derecho</label><select id="typeFilter"><option value="">Todos</option><option>Acceso</option><option>Supresion</option><option>Rectificacion</option><option>Portabilidad</option></select></div>
+<button>Actualizar</button></form>
+<div class="table-scroll"><table class="dpo-table"><thead><tr><th>Ticket</th><th>Titular</th><th>Derecho</th><th>Estado</th><th>SLA</th><th>Acciones</th></tr></thead><tbody id="dpoTableBody"></tbody></table></div>
+<div class="toolbar"><button type="button" id="previousPage">Anterior</button><p id="pageInfo"></p><button type="button" id="nextPage">Siguiente</button></div>
+</section>
+<section id="requestDetail" class="card hidden"><h2 id="detailTitle"></h2><p id="detailText"></p><form id="statusForm"><label for="newStatus">Siguiente estado</label><select id="newStatus" required></select><label for="resolutionNote">Nota de resolución</label><textarea id="resolutionNote" maxlength="500"></textarea><button id="saveStatus">Guardar estado</button></form><h3>Auditoría del ticket</h3><pre id="auditEntries"></pre></section>
+<section class="card"><h2>Datos del titular</h2><p>Comprueba la identidad por el procedimiento de tu organización antes de entregar datos o ejecutar cambios.</p><form id="subjectForm"><label for="subjectId">Documento / ID</label><input id="subjectId" required pattern="[A-Za-z0-9\-]{4,32}"><button>Consultar datos</button></form><pre id="subjectData"></pre><div class="toolbar"><button type="button" id="portableButton" disabled>Descargar JSON portable</button><button type="button" id="eraseButton" disabled>Solicitar supresión</button></div><form id="rectifyForm" class="hidden"><label for="subjectName">Nombre corregido</label><input id="subjectName" maxlength="200"><label for="subjectEmail">Correo corregido</label><input id="subjectEmail" type="email" maxlength="254"><button>Guardar rectificación</button></form></section>
+<section class="card"><h2>Búsqueda de documentos</h2><p>Los resultados semánticos requieren revisión para descartar información de terceros.</p><form id="searchForm"><label for="query">Consulta</label><input id="query" maxlength="4000" required><button>Buscar con FAISS</button></form><pre id="searchResults"></pre></section>
+<section class="card"><h2>Ocultar datos antes de revisar</h2><form id="redactForm"><label for="redactText">Texto a revisar</label><textarea id="redactText" maxlength="20000" required rows="5"></textarea><label for="redactValues">Nombres u otros valores (uno por línea)</label><textarea id="redactValues" rows="2"></textarea><button>Ocultar coincidencias</button></form><pre id="redactResult"></pre></section>
+</main></div><script src="/static/dpo.js"></script></body></html>

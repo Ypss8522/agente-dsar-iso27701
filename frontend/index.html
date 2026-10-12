@@ -10,11 +10,11 @@
     <div class="container">
         <header>
             <h1>Solicitud de Derechos de Privacidad (DSAR)</h1>
-            <p>Gestiona el acceso, rectificación o eliminación de tus datos personales según la ISO/IEC 27701.</p>
+            <p>Solicita acceso, rectificación, portabilidad o supresión de tus datos personales.</p>
         </header>
 
         <main>
-            <form id="dsarForm" class="card" data-webhook-url="http://localhost:5678/webhook/dsar-request">
+            <form id="dsarForm" class="card" data-webhook-url="/api/intake">
                 <div class="form-group">
                     <label for="userId">Número de Documento / ID de Usuario *</label>
                     <input type="text" id="userId" name="user_id" placeholder="Ej: 72839102" pattern="[A-Za-z0-9\-]{4,32}" maxlength="32" required>
@@ -47,12 +47,12 @@
 
             <div id="responseCard" class="card hidden">
                 <h2>¡Solicitud Recibida!</h2>
-                <p>Tu requerimiento está siendo procesado automáticamente por nuestro Agente Inteligente.</p>
+                <p>Tu solicitud quedó registrada. El responsable revisará tu identidad y el derecho solicitado antes de procesarla.</p>
                 <div class="ticket-box">
                     <span>Número de Ticket:</span>
                     <strong id="ticketId">----</strong>
                 </div>
-                <p class="small-text">Recibirás un correo electrónico con el expediente comprimido una vez finalizada la verificación.</p>
+                <p class="small-text">Conserva este ticket para consultar al responsable de protección de datos.</p>
             </div>
         </main>
     </div>

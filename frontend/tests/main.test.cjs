@@ -29,7 +29,7 @@ function setup(fetch, valid = true) {
     vm.runInNewContext(source, {
         document: { getElementById: (id) => elements[id],
                     addEventListener: (event, callback) => callback() },
-        fetch, AbortController, setTimeout, clearTimeout, TypeError,
+        fetch, AbortController, setTimeout, clearTimeout, TypeError, crypto: require("node:crypto").webcrypto,
     });
     return { form, button, status, ticket, card, inputs,
              submit: () => form.handler({ preventDefault() {} }) };
@@ -42,7 +42,7 @@ test('envía el contrato existente y confirma únicamente el ticket real', async
         return { ok: true, json: async () => ({ status: 'success', ticket_id: 'DSAR-001' }) };
     });
     await ui.submit();
-    assert.equal(sent.url, 'http://localhost:5678/webhook/dsar-request');
+    assert.equal(sent.url, '/api/intake');
     assert.equal(sent.options.method, 'POST');
     assert.equal(sent.options.headers['Content-Type'], 'application/json');
     const payload = JSON.parse(sent.options.body);
@@ -59,7 +59,7 @@ test('envía el contrato existente y confirma únicamente el ticket real', async
 
 test('no muestra éxito ni tickets ficticios ante errores', async () => {
     const scenarios = [
-        [async () => ({ ok: false, status: 500 }), /HTTP 500/],
+        [async () => ({ ok: false, status: 500, json: async () => ({}) }), /HTTP 500/],
         [async () => { throw new TypeError('Failed to fetch'); }, /CORS/],
         [async () => ({ ok: true, json: async () => { throw new SyntaxError(); } }), /JSON válido/],
         [async () => ({ ok: true, json: async () => ({}) }), /ticket/],
@@ -101,4 +101,25 @@ test('evita envíos simultáneos', async () => {
     finish({ ok: true, json: async () => ({ ticket_id: 'DSAR-002' }) });
     await pending;
     assert.equal(ui.button.disabled, false);
+});
+
+
+test('reutiliza la clave después de un fallo y cambia al editar campos', async () => {
+    const keys = [];
+    const ui = setup(async (url, options) => {
+        keys.push(options.headers['Idempotency-Key']);
+        throw new TypeError('offline');
+    });
+    await ui.submit(); await ui.submit();
+    assert.equal(keys[0], keys[1]);
+    assert.match(keys[0], /^[a-f0-9-]{36}$/);
+    ui.inputs.details.value = 'Otra solicitud';
+    await ui.submit(); assert.notEqual(keys[1], keys[2]);
+});
+
+test('muestra el diagnóstico del backend y conserva los datos', async () => {
+    const ui = setup(async () => ({ok:false, status:503, json:async () => ({status:'error',error:{message:'No se pudo conectar con n8n.'}})}));
+    await ui.submit();
+    assert.equal(ui.status.textContent, 'No se pudo conectar con n8n.');
+    assert.equal(ui.form.classList.contains('hidden'), false);
 });

@@ -2,6 +2,9 @@
 import os
 import re
 import json
+import hashlib
+from functools import lru_cache
+from pathlib import Path
 from threading import RLock
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +22,29 @@ _lock = RLock()
 
 class SearchUnavailable(RuntimeError):
     """Dependencias, modelo o índice local no disponibles."""
+
+
+@lru_cache(maxsize=4)
+def _model_identity(model_name):
+    """Identidad por contenido: el mismo modelo puede copiarse a otro host/Docker."""
+    root = Path(model_name)
+    if not root.is_dir():
+        return 'name:' + model_name
+    digest = hashlib.sha256()
+    files = sorted(p for p in root.rglob('*') if p.is_file() and p.suffix in ('.json', '.safetensors', '.bin', '.txt', '.model'))
+    for path in files:
+        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(b'\x00')
+        with path.open('rb') as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(block)
+    return 'sha256:' + digest.hexdigest()
+
+
+def _dimension():
+    model = _get_model()
+    method = getattr(model, 'get_embedding_dimension', None) or model.get_sentence_embedding_dimension
+    return method()
 
 
 def validar_consulta(query_text, k=5):
@@ -93,7 +119,7 @@ def _construir_indice():
         [_texto_para_vector(c) for c in chunks],
         normalize_embeddings=True)
     vectores = np.ascontiguousarray(vectores, dtype='float32')
-    if vectores.shape != (len(chunks), _get_model().get_sentence_embedding_dimension()) or not np.isfinite(vectores).all():
+    if vectores.shape != (len(chunks), _dimension()) or not np.isfinite(vectores).all():
         raise SearchUnavailable('El modelo produjo embeddings inválidos.')
     index = faiss.IndexFlatIP(vectores.shape[1])  # similitud coseno
     index.add(vectores)
@@ -101,7 +127,7 @@ def _construir_indice():
     os.makedirs(DATA_DIR, exist_ok=True)
     faiss.write_index(index, INDEX_PATH)
     with open(META_PATH, 'w', encoding='utf-8') as f:
-        json.dump({'model': MODEL_NAME, 'chunks': chunks}, f, ensure_ascii=False)
+        json.dump({'model': MODEL_NAME, 'model_id': _model_identity(MODEL_NAME), 'chunks': chunks}, f, ensure_ascii=False)
     _index, _chunks = index, chunks
     return len(chunks)
 
@@ -117,7 +143,7 @@ def _asegurar_indice():
             with open(META_PATH, encoding='utf-8') as f:
                 metadata = json.load(f)
             # Los índices anteriores no registraban el modelo; reconstruirlos.
-            if not isinstance(metadata, dict) or metadata.get('model') != MODEL_NAME:
+            if not isinstance(metadata, dict) or metadata.get('model_id') != _model_identity(MODEL_NAME):
                 raise ValueError('El índice no corresponde al modelo configurado.')
             chunks = metadata['chunks']
             if not isinstance(chunks, list) or not chunks or index.ntotal != len(chunks):
@@ -125,7 +151,7 @@ def _asegurar_indice():
             if any(not isinstance(c, dict) or not isinstance(c.get('texto'), str)
                    or not isinstance(c.get('fuente'), str) for c in chunks):
                 raise ValueError('Metadatos inválidos.')
-            if index.d != _get_model().get_sentence_embedding_dimension() or index.metric_type != faiss.METRIC_INNER_PRODUCT:
+            if index.d != _dimension() or index.metric_type != faiss.METRIC_INNER_PRODUCT:
                 raise ValueError('Dimensión o métrica incompatible.')
         except SearchUnavailable:
             raise

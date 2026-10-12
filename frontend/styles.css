@@ -119,3 +119,14 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .badge.success {
     background-color: #27AE60;
 }
+
+#panelStatus[data-state="error"] { color: #a71925; }
+.toolbar { display: flex; gap: 12px; align-items: end; margin: 16px 0; flex-wrap: wrap; }
+.toolbar > div { flex: 1; min-width: 150px; }
+.toolbar button { width: auto; }
+.table-scroll { overflow-x: auto; }
+.dpo-table button { font-size: 13px; padding: 8px; margin: 3px 0; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #F4F7FA; padding: 14px; border-radius: 6px; max-height: 400px; overflow-y: auto; }
+form button { margin-top: 12px; }
+input, select, textarea { margin-bottom: 8px; }
+@media (max-width: 600px) { body { padding: 10px; } .card { padding: 16px; } h1 { font-size: 24px; } }
